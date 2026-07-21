@@ -1,0 +1,21 @@
+# Secrets — never commit
+.env
+*.env
+serviceAccount*.json
+firebase-*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Vercel
+.vercel/
+
+# OS
+.DS_Store
