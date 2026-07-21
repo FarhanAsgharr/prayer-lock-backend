@@ -322,6 +322,89 @@ class TestStatistics:
         assert stats.all_time.success_rate == 0.5
 
 
+class TestQaza:
+    """The verification-window / qaza / missed model, server side."""
+
+    def test_qaza_is_counted_separately_from_on_time(
+        self, db: Session, user: User
+    ) -> None:
+        base = date(2026, 7, 20)
+        tracking_service.upsert_prayer_history(
+            db, user_id=user.id,
+            payload=_history_payload(PrayerName.FAJR, PrayerStatus.COMPLETED, base),
+        )
+        tracking_service.upsert_prayer_history(
+            db, user_id=user.id,
+            payload=_history_payload(
+                PrayerName.DHUHR, PrayerStatus.QAZA_COMPLETED, base
+            ),
+        )
+
+        stats = tracking_service.statistics(db, user_id=user.id, today=base)
+        assert stats.all_time.completed == 1
+        assert stats.all_time.qaza == 1
+        assert stats.by_prayer[PrayerName.DHUHR].qaza == 1
+
+    def test_qaza_counts_towards_success_but_not_on_time(
+        self, db: Session, user: User
+    ) -> None:
+        base = date(2026, 7, 20)
+        tracking_service.upsert_prayer_history(
+            db, user_id=user.id,
+            payload=_history_payload(
+                PrayerName.FAJR, PrayerStatus.QAZA_COMPLETED, base
+            ),
+        )
+        tracking_service.upsert_prayer_history(
+            db, user_id=user.id,
+            payload=_history_payload(PrayerName.DHUHR, PrayerStatus.MISSED, base),
+        )
+
+        stats = tracking_service.statistics(db, user_id=user.id, today=base)
+        # 1 qaza fulfilled of 2 assessed = 0.5 success; 0 on time.
+        assert stats.all_time.success_rate == 0.5
+        assert stats.all_time.completed == 0
+
+    def test_a_qaza_day_keeps_the_streak(self, db: Session, user: User) -> None:
+        # A make-up prayer must not break the streak — only a true miss does.
+        today = date(2026, 7, 20)
+        for prayer in PrayerName:
+            status = (
+                PrayerStatus.QAZA_COMPLETED
+                if prayer is PrayerName.FAJR
+                else PrayerStatus.COMPLETED
+            )
+            tracking_service.upsert_prayer_history(
+                db, user_id=user.id,
+                payload=_history_payload(prayer, status, today),
+            )
+
+        stats = tracking_service.statistics(db, user_id=user.id, today=today)
+        assert stats.streak.current == 1
+
+    def test_window_columns_persist(self, db: Session, user: User) -> None:
+        # The deadlines the client sends must be stored, per the spec's
+        # database requirements.
+        base = date(2026, 7, 20)
+        scheduled = datetime(base.year, base.month, base.day, 4, 27, tzinfo=UTC)
+        payload = PrayerHistoryUpload(
+            client_id=f"{base.isoformat()}:fajr",
+            prayer_date=base,
+            prayer=PrayerName.FAJR,
+            status=PrayerStatus.COMPLETED,
+            scheduled_at=scheduled,
+            window_ends_at=scheduled + timedelta(minutes=90),
+            verification_deadline=scheduled + timedelta(minutes=30),
+            qaza_deadline=scheduled + timedelta(minutes=90),
+            completed_at=scheduled + timedelta(minutes=10),
+        )
+        record, _ = tracking_service.upsert_prayer_history(
+            db, user_id=user.id, payload=payload
+        )
+        assert record.verification_deadline == scheduled + timedelta(minutes=30)
+        assert record.qaza_deadline == scheduled + timedelta(minutes=90)
+
+
 class TestStreakParity:
     """Mirrors the mobile app's StreakCalculator test cases exactly."""
 

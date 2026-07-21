@@ -17,14 +17,23 @@ class PrayerName(enum.StrEnum):
 
 
 class PrayerStatus(enum.StrEnum):
-    """Lifecycle of a single prayer on a single day."""
+    """Recorded outcome of a single prayer on a single day.
 
-    PENDING = "pending"  # window has not opened yet
-    ACTIVE = "active"  # window is open, prayer not yet completed
-    COMPLETED = "completed"  # completed within the prayer window
-    LATE = "late"  # completed, but after the window closed
-    MISSED = "missed"  # window closed with no completion
+    The verification model: a prayer can be verified within a 30-minute on-time
+    window (COMPLETED), within a following 1-hour qaza window (QAZA_COMPLETED),
+    or not at all, in which case it becomes MISSED once both windows close.
+
+    ACTIVE and LATE are legacy values kept only so rows written by earlier
+    versions still deserialise; the current model never produces them.
+    """
+
+    PENDING = "pending"  # not yet verified; still within its windows
+    COMPLETED = "completed"  # verified within the 30-minute on-time window
+    QAZA_COMPLETED = "qaza_completed"  # verified within the 1-hour qaza window
+    MISSED = "missed"  # both windows closed with no verification
     EXCUSED = "excused"  # user marked exempt (travel, illness, menstruation)
+    ACTIVE = "active"  # legacy
+    LATE = "late"  # legacy
 
 
 class Madhab(enum.StrEnum):

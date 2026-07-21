@@ -48,24 +48,32 @@ from app.services.audit_service import record_audit_event
 
 logger = get_logger(__name__)
 
-# Statuses that count as the obligation discharged.
-_FULFILLED = frozenset({PrayerStatus.COMPLETED, PrayerStatus.LATE, PrayerStatus.EXCUSED})
-# Statuses that count towards an assessed rate (excused is excluded).
-_ASSESSED = frozenset({PrayerStatus.COMPLETED, PrayerStatus.LATE, PrayerStatus.MISSED})
+# Statuses that count as the obligation discharged (qaza and legacy late
+# included — a make-up prayer keeps the streak, only a true miss breaks it).
+_FULFILLED = frozenset(
+    {
+        PrayerStatus.COMPLETED,
+        PrayerStatus.QAZA_COMPLETED,
+        PrayerStatus.LATE,
+        PrayerStatus.EXCUSED,
+    }
+)
 
 
 @dataclass
 class _Counts:
-    completed: int = 0
-    late: int = 0
+    completed: int = 0  # verified on time
+    qaza: int = 0  # verified as qaza
     missed: int = 0
     excused: int = 0
 
     def add(self, status: PrayerStatus) -> None:
         if status is PrayerStatus.COMPLETED:
             self.completed += 1
-        elif status is PrayerStatus.LATE:
-            self.late += 1
+        elif status in (PrayerStatus.QAZA_COMPLETED, PrayerStatus.LATE):
+            # Legacy LATE is folded into qaza — both mean "performed after the
+            # on-time window".
+            self.qaza += 1
         elif status is PrayerStatus.MISSED:
             self.missed += 1
         elif status is PrayerStatus.EXCUSED:
@@ -73,11 +81,11 @@ class _Counts:
 
     @property
     def assessed(self) -> int:
-        return self.completed + self.late + self.missed
+        return self.completed + self.qaza + self.missed
 
     @property
     def fulfilled(self) -> int:
-        return self.completed + self.late
+        return self.completed + self.qaza
 
     def to_schema(self) -> PeriodCounts:
         # A period with nothing assessed yet is reported as 1.0, matching the
@@ -86,7 +94,7 @@ class _Counts:
         rate = 1.0 if self.assessed == 0 else self.fulfilled / self.assessed
         return PeriodCounts(
             completed=self.completed,
-            late=self.late,
+            qaza=self.qaza,
             missed=self.missed,
             excused=self.excused,
             success_rate=rate,
@@ -135,6 +143,9 @@ class TrackingService:
                 return existing, True
             existing.status = payload.status
             existing.completed_at = payload.completed_at
+            existing.qaza_completed_at = payload.qaza_completed_at
+            existing.verification_deadline = payload.verification_deadline
+            existing.qaza_deadline = payload.qaza_deadline
             existing.delay_minutes = payload.delay_minutes
             existing.excuse_reason = payload.excuse_reason
             db.flush()
@@ -147,7 +158,10 @@ class TrackingService:
             status=payload.status,
             scheduled_at=payload.scheduled_at,
             window_ends_at=payload.window_ends_at,
+            verification_deadline=payload.verification_deadline,
+            qaza_deadline=payload.qaza_deadline,
             completed_at=payload.completed_at,
+            qaza_completed_at=payload.qaza_completed_at,
             delay_minutes=payload.delay_minutes,
             excuse_reason=payload.excuse_reason,
         )
@@ -305,7 +319,7 @@ class TrackingService:
             for day, counts in by_day.items():
                 if day >= start:
                     total.completed += counts.completed
-                    total.late += counts.late
+                    total.qaza += counts.qaza
                     total.missed += counts.missed
                     total.excused += counts.excused
             return total
@@ -313,7 +327,7 @@ class TrackingService:
         all_time = _Counts()
         for counts in by_day.values():
             all_time.completed += counts.completed
-            all_time.late += counts.late
+            all_time.qaza += counts.qaza
             all_time.missed += counts.missed
             all_time.excused += counts.excused
 

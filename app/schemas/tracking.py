@@ -46,7 +46,10 @@ class PrayerHistoryUpload(BaseModel):
     status: PrayerStatus
     scheduled_at: datetime
     window_ends_at: datetime
+    verification_deadline: datetime | None = None
+    qaza_deadline: datetime | None = None
     completed_at: datetime | None = None
+    qaza_completed_at: datetime | None = None
     delay_minutes: int | None = Field(default=None, ge=0)
     excuse_reason: str | None = Field(default=None, max_length=256)
 
@@ -109,12 +112,12 @@ class UploadAck(BaseModel):
 
 # --- Statistics ----------------------------------------------------------
 class PeriodCounts(BaseModel):
-    completed: int = 0
-    late: int = 0
+    completed: int = 0  # verified within the on-time window
+    qaza: int = 0  # verified within the qaza window, counted separately
     missed: int = 0
     excused: int = 0
-    # Completed + late, over completed + late + missed. Excused is excluded so
-    # the rate is not inflated by exemptions.
+    # (completed + qaza) over (completed + qaza + missed). Excused is excluded
+    # so the rate is not inflated by exemptions.
     success_rate: float = 0.0
 
 

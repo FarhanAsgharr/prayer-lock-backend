@@ -102,15 +102,28 @@ class PrayerHistory(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # meaningful even if the schedule is later recomputed or the location
     # deleted. History must be immutable once written.
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    # End of the permitted window (start of the following prayer).
+    # Effective end of everything actionable (the qaza deadline).
     window_ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # End of the on-time window (scheduled_at + 30m) and of the qaza window
+    # (scheduled_at + 90m). Nullable so rows migrated from before this feature
+    # remain valid; recomputable from scheduled_at when absent.
+    verification_deadline: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    qaza_deadline: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
-    # Minutes between scheduled_at and completed_at; negative is impossible.
-    # Precomputed because "late prayers" reporting would otherwise require a
-    # correlated subquery on every dashboard load.
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Verification timestamp within the on-time window.
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Verification timestamp within the qaza window (distinct from on-time).
+    qaza_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Minutes between scheduled_at and verification; negative is impossible.
     delay_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Set when the user marks a prayer excused rather than completing it.
