@@ -69,6 +69,10 @@ class CalculationMethod(enum.StrEnum):
     TURKEY = "turkey"
     TEHRAN = "tehran"
     NORTH_AMERICA = "north_america"  # ISNA
+    # Ja'fari (Shia Ithna-Ashari). Distinct from TEHRAN, which is a different
+    # authority with different angles despite both being used by Shia
+    # communities.
+    JAFARI = "jafari"
 
 
 class HighLatitudeRule(enum.StrEnum):

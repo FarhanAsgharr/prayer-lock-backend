@@ -63,6 +63,11 @@ METHOD_PARAMETERS: dict[CalculationMethod, MethodParameters] = {
     # Tehran also lifts Maghrib off the horizon to a 4.5 degree depression.
     CalculationMethod.TEHRAN: MethodParameters(fajr_angle=17.7, isha_angle=14.0, maghrib_angle=4.5),
     CalculationMethod.NORTH_AMERICA: MethodParameters(fajr_angle=15.0, isha_angle=15.0),
+    # Ja'fari also lifts Maghrib off the horizon: it begins when the sun's
+    # redness fades, at roughly 4 degrees of depression, rather than at sunset.
+    CalculationMethod.JAFARI: MethodParameters(
+        fajr_angle=16.0, isha_angle=14.0, maghrib_angle=4.0
+    ),
 }
 
 # Asr begins when an object's shadow equals its own length plus this multiple.
