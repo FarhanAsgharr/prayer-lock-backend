@@ -47,6 +47,56 @@ class PrayerTimesResponse(BaseModel):
     seconds_until_next_prayer: int | None = None
 
 
+class PrayerWindowSchema(BaseModel):
+    """One prayer's computed blocking window."""
+
+    prayer: PrayerName
+    starts_at: datetime
+    ends_at: datetime
+    #: What closes the window — "sunrise", "asr", "next_day_fajr" and so on.
+    #: Sent so the client can render "End: Sunrise" without duplicating the
+    #: fiqh rules that decide it.
+    boundary: str
+    duration_minutes: int
+    #: Preformatted on the server so the same wording appears in a push
+    #: notification and in the app.
+    duration_label: str
+
+
+class PrayerScheduleResponse(BaseModel):
+    """A day's prayer times together with the durations derived from them."""
+
+    prayer_date: date
+    timezone: str
+    method: CalculationMethod
+    madhab: Madhab
+
+    fajr: datetime
+    sunrise: datetime
+    dhuhr: datetime
+    asr: datetime
+    maghrib: datetime
+    isha: datetime
+
+    #: The following day's Fajr, which closes the Isha window. Included so a
+    #: client can reconstruct every window from this response alone.
+    next_day_fajr: datetime
+
+    windows: list[PrayerWindowSchema]
+    total_blocked_minutes: int
+
+    #: True when the raw astronomical times were out of order and had to be
+    #: clamped — which happens at extreme latitudes. Surfaced rather than
+    #: hidden so a client can warn instead of showing a nonsensical duration.
+    has_clamped_windows: bool = False
+
+
+class PrayerScheduleRangeResponse(BaseModel):
+    """Consecutive days, for prefetching an offline cache."""
+
+    days: list[PrayerScheduleResponse]
+
+
 class VerificationRequest(BaseModel):
     prayer_history_id: uuid.UUID
     image_base64: str = Field(
